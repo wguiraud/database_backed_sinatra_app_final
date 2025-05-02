@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: database_backed_sinatra_app
+    runtime: ruby
+    plan: free
+    # This is the command executed during the build phase.
+    # By calling 'bundle install' we can include all of the necessary dependencies
+    buildCommand: bundle install
+    # The command that will start the application
+    startCommand: bundle exec puma -C config/puma.rb
+    # Setting the necessary environment variables
+    envVars:
+      - key: APP_ENV # Set the environment the app should run in
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: postgresql_test
+          # Render generates the string needed for the app to connect to the database
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true # Generate a base64-encoded 256-bit value
+
+databases:
+  - name: postgresql_test
+    databaseName: postgresql_test_xezo
+    user: postgresql_test_xezo_user
+    plan: free
