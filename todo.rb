@@ -24,6 +24,11 @@ configure :development do
   set :erb, escape_html: true
 end
 
+configure :production do
+  enable :sessions
+  set :erb, escape_html: true
+end
+
 before do
   @storage = DatabasePersistence.new(logger: logger)
 end
