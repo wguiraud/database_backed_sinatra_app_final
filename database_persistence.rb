@@ -5,6 +5,8 @@ require 'pg'
 # class implementing the inteface between the sinatra todo
 # application and the interaction with the
 class DatabasePersistence
+  attr_accessor :logger
+
   def initialize(logger: nil)
     @db = if Sinatra::Base.production?
             PG.connect(ENV['DATABASE_URL'])
@@ -22,17 +24,20 @@ class DatabasePersistence
 
   def find_list(id)
     list_table_name = @db.quote_ident('lists')
-    sql = <<-SQL
-    SELECT * FROM #{list_table_name}
-    WHERE id = $1;
+    sql = <<~SQL
+      SELECT lists.*,
+          COUNT(todos.completed) AS "number_of_todos",
+          COUNT(NULLIF(todos.completed, true)) AS "remaining_number_of_todos"
+      FROM #{list_table_name}
+      LEFT JOIN todos ON todos.list_id = lists.id
+      WHERE #{list_table_name}.id = $1
+      GROUP BY lists.id
+      ORDER BY lists.name;
     SQL
-
     result = query(sql, id)
     tuple = result.first
-    list_id = tuple['id'].to_i
-    todos = find_todos_for_list(list_id)
 
-    { id: list_id, name: tuple['name'], todos: todos }
+    tuple_to_list_hash(tuple)
   end
 
   def all_lists
@@ -50,11 +55,7 @@ class DatabasePersistence
     result = query(sql)
 
     result.map do |tuple|
-      { id: tuple['id'].to_i,
-        name: tuple['name'],
-        number_of_todos: tuple['number_of_todos'].to_i,
-        remaining_number_of_todos: tuple['remaining_number_of_todos'].to_i
-      }
+      tuple_to_list_hash(tuple)
     end
   end
 
@@ -129,13 +130,6 @@ class DatabasePersistence
     @db.exec('ALTER SEQUENCE lists_id_seq RESTART WITH 1')
   end
 
-  # private
-
-  def query(statement, *params)
-    @logger.info("#{statement}: #{params}")
-    @db.exec_params(statement, params)
-  end
-
   def find_todos_for_list(list_id)
     table_name = @db.quote_ident('todos')
     query = "SELECT * FROM #{table_name} WHERE list_id = $1;"
@@ -147,4 +141,20 @@ class DatabasePersistence
         completed: todo_tuple['completed'] == 't' }
     end
   end
+
+  private
+
+  def query(statement, *params)
+    @logger.info("Executing query: #{statement}: #{params}")
+    @db.exec_params(statement, params)
+  end
+
+  def tuple_to_list_hash(tuple)
+    { id: tuple['id'].to_i,
+      name: tuple['name'],
+      number_of_todos: tuple['number_of_todos'].to_i,
+      remaining_number_of_todos: tuple['remaining_number_of_todos'].to_i
+    }
+  end
+
 end

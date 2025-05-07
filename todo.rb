@@ -47,7 +47,7 @@ end
 
 helpers do
   def list_complete?(list)
-    list[:number_of_todos].positive? && list[:remaining_number_of_todos].zero?
+      list[:number_of_todos].positive? && list[:remaining_number_of_todos].zero?
   end
 
   def list_class(list)
@@ -143,6 +143,7 @@ end
 get '/lists/:id' do
   @list_id = params[:id].to_i
   @list = load_list(@list_id)
+  @todos = @storage.find_todos_for_list(@list_id)
   erb :list, layout: :layout
 end
 

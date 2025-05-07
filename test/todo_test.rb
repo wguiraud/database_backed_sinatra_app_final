@@ -19,6 +19,7 @@ class TodoTest < Minitest::Test
 
   def setup
     @db = DatabasePersistence.new
+    @logger = ENV['RACK_LOGGER']
   end
 
   def teardown
@@ -147,5 +148,39 @@ class TodoTest < Minitest::Test
     assert_equal 200, last_response.status
 
     assert_includes last_response.body, 'All todos have been completed.'
+  end
+
+  def test_lists_page_performs_single_query #instead of four N+1 queries
+    query_count = 0
+
+    # Mock the logger to count SQL queries
+    mock_logger = Object.new
+    def mock_logger.info(message)
+      @count ||= 0
+      @count += 1 if message.include?("Executing query:")
+    end
+
+    def mock_logger.count
+      @count || 0
+    end
+
+    # Replace the normal logger with our mock
+    # original_logger = DatabasePersistence.logger
+    # DatabasePersistence.logger = mock_logger
+    original_logger = @db.logger
+    @db.logger = mock_logger
+
+    #execute the method we want to optimize
+    @db.all_lists
+
+    #Get query count
+    query_count = mock_logger.count
+
+    #reset logger
+    @db.logger = original_logger
+
+    # Assert we only performed a single query
+    assert_equal 1, mock_logger.count, "Expected 1 query but found #{query_count}"
+
   end
 end
